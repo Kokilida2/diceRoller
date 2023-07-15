@@ -3,63 +3,78 @@ from dice import dice
 import time
 from colorama import Fore
 import os
-    
-LOG_FILE = LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dice_log.log")
+import re
+import log
 
 
-#### DANGER:
-#### lazy logging ahead
-#### please proceed reading code with caution
-def logRoll(die: dice) -> None:
-    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    log_entry = f"{timestamp}, d{die._sides}, {die.face}\n"
-    with open(LOG_FILE, "r") as file:
-        content = file.read()
-    new_content = log_entry + content
-    with open(LOG_FILE, "w") as file:
-        file.write(new_content)
-
-def showLog() -> None:
-    with open(LOG_FILE, "r") as file:
-        print(file.read())
-### end of lazy logging
 
 
-def roll_dice(x, n) -> list:
+def roll_dice(x, n,m) -> list:
     dices = []
-    myDice = dice(n)
+    myDice = dice(n,m)
     for i in range(x):
         myDice.roll()
-        logRoll(myDice)
+        log.logRoll(myDice)
         dices.append(myDice.copy())
     return dices
+
+def parseDice(dices: str):
+        pattern = r'^(\d*)d(\d+)([-+]?\d+)?$'
+        match = re.match(pattern, dices)
+
+        if not match:
+            raise ValueError("Invalid input format")
+
+        numOfDice, sides, modifier = match.groups()
+        numOfDice = int(numOfDice) if numOfDice else 1
+        modifier = int(modifier) if modifier else 0
+
+        try:
+            numOfDice = int(numOfDice)
+            sides = int(sides)
+            modifier = int(modifier)
+        except ValueError:
+            raise ValueError("Invalid input format: All parts must be integers")
+
+        return numOfDice, sides, modifier
+
 
 def main():
     parser = argparse.ArgumentParser(description="Dice Roller")
     parser.add_argument('dice', type=str, help="Specify the dice in the format 'xdn' where x and n are numbers.")
     parser.add_argument('-nosleep', action='store_true', help="Disable sleep.")
-    
+
     log_group = parser.add_mutually_exclusive_group()
-    
     log_group.add_argument('-log', action='store_true', help="Show log")
     log_group.add_argument('-sum', action='store_true', help="Show the sum of dice")
     log_group.add_argument('-min', action='store_true', help="Show the minimum value dice (disadvantage rolls)")
     log_group.add_argument('-max', action='store_true', help="Show the maximum value dice (advantage rolls)")
+    log_group.add_argument('-graph', action='store_true', help="Show a graph of all dice rolls for a particular die")
+
+
 
     args = parser.parse_args()
+    
+
 
     if args.log:
-        showLog()
+        log.showLog()
         exit(0)
     
-    if args.dice[0] != "d":
-        x, n = map(int, args.dice.split('d'))
-    else:
-        x, n = 1, int(args.dice.replace("d",""))
+    try:
+        numOfDice,sides,modifier=parseDice(args.dice)
+    except:
+        parser.print_help()
+        exit(-1)
     
-    diceRolls = roll_dice(x, n)
+    if args.graph:
+        log.showGraph(sides)
+        exit(0)
+    
+    diceRolls = roll_dice(numOfDice, sides,modifier)
     if args.sum:
-        print(f"{Fore.LIGHTYELLOW_EX}~~== 🎲 {sum(i.face for i in diceRolls)} 🎲 ==~~")
+        print(f"({','.join(i.faceColor() for i in diceRolls)})")
+        print(f"{Fore.LIGHTYELLOW_EX}~~== 🎲 {sum(i.face for i in diceRolls)+modifier} 🎲 ==~~")
     elif args.min:
         print(min(diceRolls,key=lambda die: die.face))
     elif args.max:
